@@ -1,11 +1,10 @@
 name: Temporary Orion pt-BR build
 
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths:
-      - "orion-build/**"
       - ".github/workflows/orion-build.yml"
   workflow_dispatch:
 
@@ -19,6 +18,7 @@ jobs:
       - name: Checkout temporary build scripts
         uses: actions/checkout@v6
         with:
+          ref: chatgpt-orion-ptbr-20260927
           path: workspace
 
       - name: Checkout Vencord 90aea0d
