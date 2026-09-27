@@ -1,0 +1,91 @@
+name: Temporary Orion pt-BR build
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "orion-build/**"
+      - ".github/workflows/orion-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout temporary build scripts
+        uses: actions/checkout@v6
+        with:
+          path: workspace
+
+      - name: Checkout Vencord 90aea0d
+        uses: actions/checkout@v6
+        with:
+          repository: Vendicated/Vencord
+          ref: 90aea0ddbbfbee16ce052b2c7ab610ffe957b4ca
+          path: vencord
+
+      - name: Checkout Orion v4.11.4
+        uses: actions/checkout@v6
+        with:
+          repository: nyxxbit/discord-quest-completer
+          ref: v4.11.4
+          path: vencord/src/userplugins/orionQuests
+
+      - name: Apply pt-BR UI translation
+        run: python workspace/orion-build/translate_orion.py
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: vencord/package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: vencord/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: vencord
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript validation
+        working-directory: vencord
+        run: pnpm testTsc
+
+      - name: Build Vencord desktop
+        working-directory: vencord
+        run: pnpm run build
+
+      - name: Validate Orion renderer/native integration and translation
+        working-directory: vencord
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "OrionQuests" dist/renderer.js
+          grep -q "Completa automaticamente as Missões do Discord" dist/renderer.js
+          grep -q "Controla o mecanismo do OrionQuests" dist/renderer.js
+          grep -q "Inicia o mecanismo automaticamente" dist/renderer.js
+          grep -q "ACHIEVEMENT_IN_ACTIVITY" dist/renderer.js
+          grep -q "OrionQuests" dist/patcher.js
+          grep -q "discordsays" dist/patcher.js
+          node --check dist/renderer.js
+          node --check dist/patcher.js
+          sha256sum dist/renderer.js dist/patcher.js > dist/SHA256SUMS.txt
+          printf "Vencord base: 90aea0ddbbfbee16ce052b2c7ab610ffe957b4ca\nOrion: v4.11.4\nTranslation: pt-BR, Orion only\n" > dist/BUILD-INFO.txt
+
+      - name: Upload compiled files
+        uses: actions/upload-artifact@v6
+        with:
+          name: vencord-orion-v4.11.4-ptbr
+          path: |
+            vencord/dist/renderer.js
+            vencord/dist/patcher.js
+            vencord/dist/SHA256SUMS.txt
+            vencord/dist/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 1
